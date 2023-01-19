@@ -21,6 +21,7 @@ const captchaFont = "./bitMatrix-A2.ttf";
 const captchaLength = 4;
 const captchaSize = [190, 72];
 const port = 30001;
+const captchaCleanupInterval = 43200000;
 
 const sanitizeConf = {
     allowedTags: [ 'b', 'i', 'em', 'strong', 'a' ],
@@ -38,6 +39,25 @@ font.load(() => {
 
 // Some test-and-set initializations
 const db = database.initializeDatabase("comments.sqlite3");
+
+function expireCaptchas() {
+    const now = new Date();
+    let toClean = [];
+
+    for (let k in captchas) {
+        let elapsed = now - captchas[k].time;
+
+        if (elapsed / 1000.0 > 86400.0) {
+            toClean.push(k);
+        }
+    }
+
+    for (let i = 0; i < toClean.length; i++) {
+        delete captchas[toClean[i]];
+    }
+
+    setTimeout(expireCaptchas, captchaCleanupInterval);
+}
 
 //
 // Shows the comments under post url, or ID, or some identifier.
@@ -178,7 +198,7 @@ app.post("/comment", (req, res) => {
     }
 
     if (!(req.body.captchaID in captchas)) {
-        ret.error = "no such challenge";
+        ret.error = "captcha has expired";
         res.end(JSON.stringify(ret));
         return;
     }
@@ -240,4 +260,5 @@ app.post("/star", (req, res) => {
 
 app.listen(port, () => {
     console.log("minicomment is running at port", port, ".");
+    setTimeout(expireCaptchas, captchaCleanupInterval);
 });
